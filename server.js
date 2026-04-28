@@ -20,15 +20,18 @@ const TOKEN = process.env.TOKEN;
 const WA_TEMPLATE_NAME = process.env.WA_TEMPLATE_NAME || "cart_2";
 const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-// in-memory stores (for production, Redis/DB is better)
+// stores
 const pendingOrders = new Map();
 const sentMessages = new Map();
 
 function normalizePhone(phone) {
   if (!phone) return null;
+
   let p = String(phone).replace(/\D/g, "");
+
   if (p.startsWith("0")) p = p.slice(1);
   if (p.length === 10) p = "91" + p;
+
   return p;
 }
 
@@ -57,9 +60,14 @@ function verifySignature(req) {
 }
 
 async function sendWhatsApp(phone, amount) {
-  if (!phone) return;
+  if (!phone) {
+    console.log("No phone found");
+    return;
+  }
 
-  const formattedAmount = amount ? `₹${amount / 100}` : "your cart amount";
+  const formattedAmount = amount
+    ? `₹${amount / 100}`
+    : "your cart amount";
 
   if (isDuplicate(phone)) {
     console.log("Duplicate blocked:", phone);
@@ -68,16 +76,26 @@ async function sendWhatsApp(phone, amount) {
 
   const url = `https://api.wamantra.com/api/${VENDOR_ID}/contact/send-message?token=${TOKEN}`;
 
+  // UPDATED PAYLOAD
   const payload = {
     phone_number: phone,
     template_name: WA_TEMPLATE_NAME,
     template_language: "en",
     field_1: formattedAmount,
+    message_body: "Cart Recovery",
+    type: "template",
   };
 
   try {
-    const response = await axios.post(url, payload);
-    console.log("WA sent:", response.data);
+    console.log("Sending WA payload:", payload);
+
+    const response = await axios.post(url, payload, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log("WA sent successfully:", response.data);
     markSent(phone);
   } catch (err) {
     console.error(
@@ -87,7 +105,7 @@ async function sendWhatsApp(phone, amount) {
   }
 }
 
-// wait 30 mins then send if unpaid
+// 30 min wait
 function scheduleAbandoned(orderId, phone, amount) {
   if (!phone) return;
 
@@ -102,6 +120,7 @@ function scheduleAbandoned(orderId, phone, amount) {
     const order = pendingOrders.get(orderId);
 
     if (!order) return;
+
     if (order.paid) {
       pendingOrders.delete(orderId);
       return;
@@ -110,6 +129,7 @@ function scheduleAbandoned(orderId, phone, amount) {
     console.log("Abandoned checkout detected:", orderId);
 
     await sendWhatsApp(order.phone, order.amount);
+
     pendingOrders.delete(orderId);
   }, 30 * 60 * 1000);
 }
@@ -125,6 +145,7 @@ app.post("/razorpay-webhook", async (req, res) => {
     }
 
     const event = req.body.event;
+
     const entity =
       req.body.payload?.payment?.entity ||
       req.body.payload?.order?.entity ||
@@ -143,36 +164,40 @@ app.post("/razorpay-webhook", async (req, res) => {
 
     const amount = entity.amount || 0;
 
+    console.log("==================================");
     console.log("Event:", event);
     console.log("Phone:", phone);
     console.log("Amount:", amount);
+    console.log("==================================");
 
-    // 1) checkout started
-    if (event === "order.created") {
-      scheduleAbandoned(orderId, phone, amount);
-    }
-
-    // 2) payment failed → instant send
+    // payment failed = instant WA
     if (event === "payment.failed") {
       await sendWhatsApp(phone, amount);
     }
 
-    // 3) payment success → stop automatio 
+    // optional abandoned logic
+    if (event === "payment.authorized") {
+      scheduleAbandoned(orderId, phone, amount);
+    }
+
+    // payment success = stop automation
     if (
       event === "payment.captured" ||
       event === "order.paid"
     ) {
       const order = pendingOrders.get(orderId);
+
       if (order) {
         order.paid = true;
         pendingOrders.set(orderId, order);
       }
+
       console.log("Payment success, automation stopped");
     }
 
     res.status(200).send("ok");
   } catch (err) {
-    console.error(err);
+    console.error("Webhook Error:", err);
     res.status(500).send("error");
   }
 });
