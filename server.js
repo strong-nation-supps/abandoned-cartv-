@@ -76,14 +76,13 @@ async function sendWhatsApp(phone, amount) {
 
   const url = `https://api.wamantra.com/api/${VENDOR_ID}/contact/send-message?token=${TOKEN}`;
 
-  // UPDATED PAYLOAD
+  // TEMPLATE PAYLOAD
   const payload = {
     phone_number: phone,
     template_name: WA_TEMPLATE_NAME,
     template_language: "en",
     field_1: formattedAmount,
-    message_body: "Cart Recovery",
-    type: "template",
+    message_body: " "
   };
 
   try {
@@ -95,7 +94,7 @@ async function sendWhatsApp(phone, amount) {
       },
     });
 
-    console.log("WA sent successfully:", response.data);
+    console.log("WA Template sent successfully:", response.data);
     markSent(phone);
   } catch (err) {
     console.error(
@@ -105,7 +104,7 @@ async function sendWhatsApp(phone, amount) {
   }
 }
 
-// 30 min wait
+// 30 min wait logic
 function scheduleAbandoned(orderId, phone, amount) {
   if (!phone) return;
 
@@ -170,17 +169,17 @@ app.post("/razorpay-webhook", async (req, res) => {
     console.log("Amount:", amount);
     console.log("==================================");
 
-    // payment failed = instant WA
+    // payment failed → instant template msg
     if (event === "payment.failed") {
       await sendWhatsApp(phone, amount);
     }
 
-    // optional abandoned logic
+    // payment authorized → start abandoned timer
     if (event === "payment.authorized") {
       scheduleAbandoned(orderId, phone, amount);
     }
 
-    // payment success = stop automation
+    // payment success → stop automation
     if (
       event === "payment.captured" ||
       event === "order.paid"
