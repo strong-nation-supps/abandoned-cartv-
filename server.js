@@ -5,7 +5,6 @@ const axios = require("axios");
 
 const app = express();
 
-// raw body needed for Razorpay signature verify
 app.use(
   express.json({
     verify: (req, res, buf) => {
@@ -20,7 +19,7 @@ const TOKEN = process.env.TOKEN;
 const WA_TEMPLATE_NAME = process.env.WA_TEMPLATE_NAME || "cart_2";
 const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-// stores
+// Stores
 const pendingOrders = new Map();
 const sentMessages = new Map();
 
@@ -28,7 +27,6 @@ function normalizePhone(phone) {
   if (!phone) return null;
 
   let p = String(phone).replace(/\D/g, "");
-
   if (p.startsWith("0")) p = p.slice(1);
   if (p.length === 10) p = "91" + p;
 
@@ -67,7 +65,7 @@ async function sendWhatsApp(phone, amount) {
 
   const formattedAmount = amount
     ? `₹${amount / 100}`
-    : "your cart amount";
+    : "₹0";
 
   if (isDuplicate(phone)) {
     console.log("Duplicate blocked:", phone);
@@ -76,13 +74,19 @@ async function sendWhatsApp(phone, amount) {
 
   const url = `https://api.wamantra.com/api/${VENDOR_ID}/contact/send-message?token=${TOKEN}`;
 
-  // TEMPLATE PAYLOAD
+  // UPDATED WA MANTRA TEMPLATE PAYLOAD
   const payload = {
     phone_number: phone,
     template_name: WA_TEMPLATE_NAME,
     template_language: "en",
     field_1: formattedAmount,
-    message_body: " "
+    message_body: "Template Message",
+    contact: {
+      first_name: "Customer",
+      last_name: "",
+      country: "India",
+      language_code: "en"
+    }
   };
 
   try {
@@ -104,7 +108,7 @@ async function sendWhatsApp(phone, amount) {
   }
 }
 
-// 30 min wait logic
+// 30 mins abandoned logic
 function scheduleAbandoned(orderId, phone, amount) {
   if (!phone) return;
 
@@ -169,12 +173,12 @@ app.post("/razorpay-webhook", async (req, res) => {
     console.log("Amount:", amount);
     console.log("==================================");
 
-    // payment failed → instant template msg
+    // payment failed → instant template
     if (event === "payment.failed") {
       await sendWhatsApp(phone, amount);
     }
 
-    // payment authorized → start abandoned timer
+    // payment authorized → abandoned timer start
     if (event === "payment.authorized") {
       scheduleAbandoned(orderId, phone, amount);
     }
