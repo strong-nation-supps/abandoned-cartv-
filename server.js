@@ -157,7 +157,7 @@ app.post("/razorpay-webhook", async (req, res) => {
       await sendWhatsApp(phone, amount);
     }
 
-    // 3) payment success → stop automation
+    // 3) payment success → stop automatio 
     if (
       event === "payment.captured" ||
       event === "order.paid"
