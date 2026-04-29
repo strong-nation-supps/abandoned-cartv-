@@ -19,6 +19,10 @@ const TOKEN = process.env.TOKEN;
 const WA_TEMPLATE_NAME = process.env.WA_TEMPLATE_NAME || "cart_2";
 const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 
+// YOUR TEMPLATE HEADER IMAGE
+const HEADER_IMAGE =
+  "https://cdn.shopify.com/s/files/1/0651/8492/3725/files/cart.jpg?v=1777383143";
+
 // Stores
 const pendingOrders = new Map();
 const sentMessages = new Map();
@@ -70,14 +74,13 @@ async function sendWhatsApp(phone, amount) {
     return;
   }
 
-  // TEMPLATE API ENDPOINT
   const url = `https://api.wamantra.com/api/${VENDOR_ID}/contact/send-template-message?token=${TOKEN}`;
 
-  // TEMPLATE PAYLOAD
   const payload = {
     phone_number: phone,
     template_name: WA_TEMPLATE_NAME,
     template_language: "en",
+    header_image: HEADER_IMAGE,
     field_1: formattedAmount,
     contact: {
       first_name: "Customer",
