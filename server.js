@@ -63,34 +63,36 @@ async function sendWhatsApp(phone, amount) {
     return;
   }
 
-  const formattedAmount = amount
-    ? `₹${amount / 100}`
-    : "₹0";
+  const formattedAmount = amount ? `₹${amount / 100}` : "₹0";
 
   if (isDuplicate(phone)) {
     console.log("Duplicate blocked:", phone);
     return;
   }
 
-  const url = `https://api.wamantra.com/api/${VENDOR_ID}/contact/send-message?token=${TOKEN}`;
+  // TEMPLATE API ENDPOINT
+  const url = `https://api.wamantra.com/api/${VENDOR_ID}/contact/send-template-message?token=${TOKEN}`;
 
-  // UPDATED WA MANTRA TEMPLATE PAYLOAD
+  // TEMPLATE PAYLOAD
   const payload = {
     phone_number: phone,
     template_name: WA_TEMPLATE_NAME,
     template_language: "en",
     field_1: formattedAmount,
-    message_body: "Template Message",
     contact: {
       first_name: "Customer",
       last_name: "",
       country: "India",
-      language_code: "en"
-    }
+      language_code: "en",
+    },
   };
 
   try {
-    console.log("Sending WA payload:", payload);
+    console.log("==================================");
+    console.log("Sending WhatsApp Template");
+    console.log("Phone:", phone);
+    console.log("Payload:", payload);
+    console.log("==================================");
 
     const response = await axios.post(url, payload, {
       headers: {
@@ -144,6 +146,7 @@ app.get("/", (req, res) => {
 app.post("/razorpay-webhook", async (req, res) => {
   try {
     if (!verifySignature(req)) {
+      console.log("Invalid signature");
       return res.status(401).send("Invalid signature");
     }
 
@@ -168,18 +171,22 @@ app.post("/razorpay-webhook", async (req, res) => {
     const amount = entity.amount || 0;
 
     console.log("==================================");
+    console.log("Webhook Received");
     console.log("Event:", event);
+    console.log("Order ID:", orderId);
     console.log("Phone:", phone);
     console.log("Amount:", amount);
     console.log("==================================");
 
     // payment failed → instant template
     if (event === "payment.failed") {
+      console.log("Payment failed → sending template");
       await sendWhatsApp(phone, amount);
     }
 
-    // payment authorized → abandoned timer start
+    // payment authorized → start abandoned timer
     if (event === "payment.authorized") {
+      console.log("Payment authorized → 30 min timer started");
       scheduleAbandoned(orderId, phone, amount);
     }
 
@@ -195,7 +202,7 @@ app.post("/razorpay-webhook", async (req, res) => {
         pendingOrders.set(orderId, order);
       }
 
-      console.log("Payment success, automation stopped");
+      console.log("Payment success → automation stopped");
     }
 
     res.status(200).send("ok");
