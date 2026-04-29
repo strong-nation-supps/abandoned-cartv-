@@ -67,7 +67,7 @@ async function sendWhatsApp(phone, amount) {
     return;
   }
 
-  const formattedAmount = amount ? `₹${amount / 100}` : "₹0";
+  const formattedAmount = amount ? `${amount / 100}` : "₹0";
 
   if (isDuplicate(phone)) {
     console.log("Duplicate blocked:", phone);
