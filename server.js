@@ -1,3 +1,4 @@
+
 require("dotenv").config();
 const express = require("express");
 const crypto = require("crypto");
@@ -26,6 +27,7 @@ const HEADER_IMAGE =
 // Stores
 const pendingOrders = new Map();
 const sentMessages = new Map();
+const processingOrders = new Set(); // NEW: duplicate webhook blocker
 
 function normalizePhone(phone) {
   if (!phone) return null;
@@ -67,10 +69,10 @@ async function sendWhatsApp(phone, amount) {
     return;
   }
 
-  const formattedAmount = amount ? `${amount / 100}` : "₹0";
+  const formattedAmount = amount ? `₹${amount / 100}` : "₹0";
 
   if (isDuplicate(phone)) {
-    console.log("Duplicate blocked:", phone);
+    console.log("Duplicate message blocked:", phone);
     return;
   }
 
@@ -106,10 +108,7 @@ async function sendWhatsApp(phone, amount) {
     console.log("WA Template sent successfully:", response.data);
     markSent(phone);
   } catch (err) {
-    console.error(
-      "WA Error:",
-      err.response?.data || err.message
-    );
+    console.error("WA Error:", err.response?.data || err.message);
   }
 }
 
@@ -172,6 +171,18 @@ app.post("/razorpay-webhook", async (req, res) => {
     );
 
     const amount = entity.amount || 0;
+
+    // NEW: block duplicate webhook hits
+    if (processingOrders.has(orderId)) {
+      console.log("Duplicate webhook blocked:", orderId);
+      return res.status(200).send("duplicate blocked");
+    }
+
+    processingOrders.add(orderId);
+
+    setTimeout(() => {
+      processingOrders.delete(orderId);
+    }, 60 * 1000);
 
     console.log("==================================");
     console.log("Webhook Received");
