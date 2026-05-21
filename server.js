@@ -81,7 +81,7 @@ async function sendWhatsApp(phone, amount) {
   const payload = {
     phone_number: phone,
     template_name: WA_TEMPLATE_NAME,
-    template_language: "en",
+    template_language: "en_US",
     header_image: HEADER_IMAGE,
     field_1: formattedAmount,
     contact: {
